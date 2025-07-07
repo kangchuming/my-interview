@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { LabASR } from 'byted-ailab-speech-sdk';
 import { Settings, MessageSquare, User, Bot, Mic, MicOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,10 +12,28 @@ export default function OfferGooseChat() {
   const [recordStatus, setRecordStatus] = useState(false);
   const [content, setContent] = useState(""); // 设置语音识别的内容
   const [header, setHeader] = useState(''); // 设置ws连接的提示语
-  const wsRef = useRef<WebSocket | null>(null); // 设置ws的连接状态
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null); // 设置媒体记录内容
   const recordStopping = useRef(false); // 记录记录停止标志
-  
+  const [fullResponse, setFullResponse] = useState({});
+  const [asrClient] = useState(
+    LabASR({
+      onMessage: async (text, fullData) => {
+        setContent(text);
+        setFullResponse(fullData);
+      },
+      onStart() {
+        setHeader('正在录音');
+        setContent('');
+      },
+      onClose() {
+        setHeader('录音结束');
+      },
+      onError() {
+        setHeader('连接异常');
+        console.error('ASR连接异常');
+      }
+    })
+  );
+
 
   const conversations = [
     { id: 1, title: "面试官", time: "00:00:33", active: true },
@@ -46,39 +65,29 @@ export default function OfferGooseChat() {
     setContent('');
 
     try {
-      // 连接你自己的 WebSocket 服务器，而不是 openspeech
-      const ws = new WebSocket('ws://localhost:3001/api/asr/ws');
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setHeader('正在录音');
-        startRecording();
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.result && data.result.text) {
-            console.log(333, data.result.text);
-            
-            setContent(data.result.text);
+      const params = {
+        url: 'ws://localhost:3001/api/asr/ws',
+        config: {
+          user: {
+            uid: 'byted sdk demo',
+          },
+          audio: {
+            format: 'pcm',
+            rate: 16000,
+            bits: 16,
+            channel: 1,
+          },
+          request: {
+            model_name: 'bigmodel',
+            show_utterances: true
           }
-          // setFullResponse(data);
-        } catch (err) {
-          console.error('解析消息失败:', err);
         }
       };
+      asrClient.connect(params);
+      await asrClient.startRecord();
 
-      ws.onclose = () => {
-        setHeader('录音结束');
-        console.log('录音结束');
-        
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket 错误:', error);
-        setHeader('连接错误');
-      };
+      setHeader('正在录音');
+      console.log('开始录音');
 
     } catch (error) {
       console.error('启动录音失败:', error);
@@ -86,29 +95,7 @@ export default function OfferGooseChat() {
     }
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
-      mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-          // 发送音频数据到你的服务器
-          wsRef.current.send(event.data);
-        }
-      };
-
-      mediaRecorder.start(100); // 每100ms发送一次数据
-    } catch (error) {
-      console.log(error);
-      
-      console.error('获取麦克风权限失败:', error);
-      setHeader('麦克风权限获取失败');
-    }
-  };
 
   const stopASR = () => {
     if (recordStopping.current) {
@@ -116,38 +103,20 @@ export default function OfferGooseChat() {
     }
     recordStopping.current = true;
 
-    // 停止录音
-    if (mediaRecorderRef.current?.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
-
-    // 关闭 WebSocket 连接
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.close();
-    }
+    asrClient.stopRecord();
 
     setHeader('录音结束');
   };
 
   // 点击录音按钮后，调用录音开始或录音结束
   const changeRecordStatus = () => {
-    if(recordStopping.current) {
+    if (recordStatus) {
       stopASR();
     } else {
       startASR();
     }
-    recordStopping.current = !recordStopping.current;
     setRecordStatus(!recordStatus);
   }
-
-  useEffect(() => {
-    console.log(111, content);
-    
-  }, [content]);
-
-  useEffect(() => {
-    console.log(222, mediaRecorderRef.current);
-  }, [mediaRecorderRef.current])
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -262,9 +231,8 @@ export default function OfferGooseChat() {
               {conversations.map((conv) => (
                 <Card
                   key={conv.id}
-                  className={`p-3 cursor-pointer transition-colors ${
-                    conv.active ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
-                  }`}
+                  className={`p-3 cursor-pointer transition-colors ${conv.active ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -309,3 +277,4 @@ export default function OfferGooseChat() {
     </div>
   )
 }
+
