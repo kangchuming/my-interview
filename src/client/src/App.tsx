@@ -1,11 +1,29 @@
 import { useState, useRef, useEffect } from "react"
-import { LabASR } from 'byted-ailab-speech-sdk';
+import { LabASR, LabTTS } from 'byted-ailab-speech-sdk';
+import { v4 as uuid } from 'uuid';
+import { getToken } from './utils/getToken';
+import { smallChat } from './utils/smallchat';
+import { getAns } from './utils/getLoopAns';
+import { buildFullUrl } from './utils/buildFullUrl';
 import { Settings, MessageSquare, User, Bot, Mic, MicOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { PositionType, InterviewPrompt, QuestionSet, EvaluationDimension } from './types/index.js';
+
+
+const greetings = {
+  "前端": "您好！我是今天的前端技术面试官，很高兴见到您。我在前端开发领域有8年经验，主要负责React、Vue、Node等技术栈的面试。",
+  "后端": "您好！我是今天的后端技术面试官，很高兴见到您。我在后端开发领域有8年经验，主要关注分布式系统、微服务架构等技术。",
+  "算法": "您好！我是今天的算法工程师面试官，很高兴见到您。我在机器学习和推荐系统领域有丰富经验。",
+  "产品": "您好！我是今天的产品经理面试官，很高兴见到您。我在产品设计和用户体验方面有多年经验。",
+  "测试": "您好！我是今天的测试开发面试官，很高兴见到您。我在自动化测试和质量保障方面有丰富经验。",
+  "运营": "您好！我是今天的运营面试官，很高兴见到您。我在用户增长和数据分析方面有多年经验。",
+  "数据": "您好！我是今天的数据工程师面试官，很高兴见到您。我在大数据处理和数据分析方面有丰富经验。",
+  "DevOps": "您好！我是今天的DevOps面试官，很高兴见到您。我在CI/CD和云原生技术方面有多年经验。"
+};
 
 export default function OfferGooseChat() {
   const [message, setMessage] = useState("");
@@ -14,9 +32,20 @@ export default function OfferGooseChat() {
   const [header, setHeader] = useState(''); // 设置ws连接的提示语
   const recordStopping = useRef(false); // 记录记录停止标志
   const [fullResponse, setFullResponse] = useState({});
+  const [openingRemarks, setOpeningRemarks] = useState(""); // 获取开场白
+  const [positionType, setPositionType] = useState("前端"); // 设置岗位开场白
+  const openingRemarksRef = useRef<string>(''); //获取开场白
+  const [audioUrl, setAudioUrl] = useState('');
+  const [audioAuthorized, setAudioAuthorized] = useState(false); // 音频授权状态
+  // 如有需要，可以缓存音频数据
+  const downloadCache = useRef(new Uint8Array(0));
+  const isServerError = useRef(false);
   const [asrClient] = useState(
     LabASR({
       onMessage: async (text, fullData) => {
+        console.log(111, text);
+        console.log(222, fullData);
+
         setContent(text);
         setFullResponse(fullData);
       },
@@ -34,6 +63,122 @@ export default function OfferGooseChat() {
     })
   );
 
+  const textToSpeech = async (text: string) => {
+    setAudioUrl('');
+    downloadCache.current = new Uint8Array(0);
+
+    // 第1步：配置参数
+    const speaker = 'BV001_streaming';        // 选择音色（不同的人声）
+    const appid = '6132990956';
+    const accessKey = 'W9SXb2UZH5L-2VEZ9w7YgBk7pwoA_ngN'; // 使用正确的TTS Access Key
+    const cluster = 'volcano_tts'; // TTS需要cluster参数
+    const text_type = 'plain';
+    const auth: Record<string, string> = {};
+
+    // 第2步：获取认证
+    const token = await getToken(appid, accessKey);
+    if (token) {
+      auth.api_jwt = token; 
+    }
+
+
+    // 第3步：建立连接并合成语音
+    const url = 'wss://openspeech.bytedance.com/api/v1/tts/ws_binary';
+    const serviceUrl = buildFullUrl(url, auth);
+
+    const audioUrl = LabTTS().start({
+      debug: true,
+      url: serviceUrl,
+      config: {
+        app: { appid: appid, token: auth.api_jwt, cluster: cluster },
+        user: { uid: 'byted sdk DEMO' },
+        audio: {
+          encoding: 'mp3',      // 音频格式
+          rate: 24000,          // 采样率
+          voice_type: speaker,  // 音色
+        },
+        request: {
+          reqid: uuid(),
+          text: text,           // 你要转换的文字！！！
+          text_type,   // 纯文本
+          operation: 'submit',
+        },
+      },
+      onStart: () => {
+        isServerError.current = false;
+        console.log('开始合成语音...');
+      },
+      onMessage: (audioBuffer: ArrayBuffer) => {
+        // 下载缓存音频二进制包
+        const newDownloadCache = new Uint8Array(downloadCache.current.byteLength + audioBuffer.byteLength);
+        newDownloadCache.set(downloadCache.current, 0);
+        newDownloadCache.set(new Uint8Array(audioBuffer), downloadCache.current.byteLength);
+        downloadCache.current = newDownloadCache;
+      },
+      onError: (err) => {
+        console.error('语音合成失败:', err);
+      },
+      onClose: () => {
+        console.log('语音合成完成');
+      },
+    });
+
+    setAudioUrl(audioUrl);
+    return audioUrl; // 返回可播放的音频URL
+  };
+
+  // 将AI面试官的回复转成语音
+  const speakInterviewerResponse = async (response: string) => {
+    try {
+      await textToSpeech(response);
+      
+      // 等待音频合成完成后播放
+      setTimeout(() => {
+        if (downloadCache.current.byteLength > 0) {
+          const blob = new Blob([downloadCache.current], { type: 'audio/mp3' });
+          const blobUrl = URL.createObjectURL(blob);
+          const audio = new Audio(blobUrl);
+          
+          audio.onended = () => {
+            URL.revokeObjectURL(blobUrl); // 清理内存
+          };
+          
+          audio.play().catch(error => {
+            console.error('播放音频失败:', error);
+          });
+          
+          console.log('正在播放面试官语音...');
+        } else {
+          console.warn('没有音频数据可播放');
+        }
+      }, 1500); // 等待1秒确保音频数据接收完成
+      
+    } catch (error) {
+      console.error('语音合成失败:', error);
+    }
+  };
+
+  // 开启声音授权并自动播放
+  const enableAudioAndPlay = async () => {
+    try {
+      // 创建一个很短的静音音频来获取播放权限
+      const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+      await silentAudio.play();
+      setAudioAuthorized(true);
+      console.log('音频播放已授权');
+      
+      // 授权成功后自动播放第一条面试官消息
+      const firstInterviewerMessage = messages.find(msg => msg.type === "interviewer");
+      if (firstInterviewerMessage) {
+        setTimeout(() => {
+          speakInterviewerResponse(firstInterviewerMessage.content);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('音频授权失败:', error);
+      alert('请允许音频播放权限');
+    }
+  };
 
   const conversations = [
     { id: 1, title: "面试官", time: "00:00:33", active: true },
@@ -53,7 +198,7 @@ export default function OfferGooseChat() {
       id: 2,
       type: "interviewer",
       content:
-        "你好！我叫OfferGoose，是阿里公司前端技术高级的。今天我由我来主持你的面试。咱们开始之前，能不能请你简单做个自我介绍，包括你之前的项目经历和技术栈，好吗？",
+        `${greetings[positionType as keyof typeof greetings]}, 请简单介绍一下你过往工作经历`,
       avatar: "/placeholder.svg?height=40&width=40",
       name: "面试官",
       badge: "AI",
@@ -62,11 +207,27 @@ export default function OfferGooseChat() {
 
   const startASR = async () => {
     recordStopping.current = false;
+    setHeader('正在连接...');
     setContent('');
 
     try {
+      const appid = '6132990956';
+      const accessKey = 'W9SXb2UZH5L-2VEZ9w7YgBk7pwoA_ngN';
+      const auth: Record<string, string> = {};
+
+      // 大模型配置
+      const token = await getToken(appid, accessKey);
+      if (token) {
+        auth.api_resource_id = 'volc.bigasr.sauc.duration';
+        auth.api_app_key = appid;
+        auth.api_access_key = `Jwt; ${token}`;
+      }
+
+      const fullUrl = buildFullUrl('wss://openspeech.bytedance.com/api/v3/sauc/bigmodel', auth);
+      console.log('连接URL:', fullUrl);
+
       const params = {
-        url: 'ws://localhost:3001/api/asr/ws',
+        url: fullUrl,
         config: {
           user: {
             uid: 'byted sdk demo',
@@ -118,6 +279,51 @@ export default function OfferGooseChat() {
     setRecordStatus(!recordStatus);
   }
 
+  // 获取开场白
+  const getOpeningRemarks = async () => {
+    try {
+      await smallChat(
+        '前端',
+        '面试候选人',
+        // onContent: 实时接收每个内容片段
+        (content: string) => {
+          console.log('实时接收内容:', content);
+          // 实时更新ref和状态
+          openingRemarksRef.current += content;
+          setOpeningRemarks(openingRemarksRef.current);
+        },
+        // onComplete: 流式传输完成
+        (fullContent: string) => {
+          console.log('开场白获取完成:', fullContent);
+          openingRemarksRef.current = fullContent;
+          setOpeningRemarks(fullContent);
+        },
+        // onError: 错误处理
+        (error: unknown) => {
+          console.error('获取开场白失败:', error);
+        }
+      );
+
+    } catch (err) {
+      console.error('获取开场白失败:', err);
+    }
+  }
+
+  // 获取面试官的问题
+  const getLoopsAns = async (positionType: PositionType, projectKeywords: InterviewPrompt, skillGaps, message) => {
+    try {
+      const res = await getAns('');
+      console.log(111, res);
+      
+    } catch(err) {
+      console.error(err);
+    }
+  }
+
+  useEffect(() => {
+    console.log('页面加载完成，等待用户点击播放语音');
+  }, [])
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Header */}
@@ -127,7 +333,7 @@ export default function OfferGooseChat() {
             <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center">
               <span className="text-white text-sm font-bold">O</span>
             </div>
-            <span className="font-semibold text-gray-800">OfferGoose</span>
+            <span className="font-semibold text-gray-800">网易面试</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">00:00:33</span>
@@ -172,7 +378,15 @@ export default function OfferGooseChat() {
                         </Badge>
                       </div>
                       <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                        <p className="text-gray-800 leading-relaxed">{msg.content}</p>
+                        <p className="text-gray-800 leading-relaxed mb-3">{msg.content}</p>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => speakInterviewerResponse(msg.content)}
+                          className="text-xs"
+                        >
+                          🔊 播放语音
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -186,14 +400,15 @@ export default function OfferGooseChat() {
             <div className="flex items-center gap-3">
               <div className="flex-1 relative">
                 <Input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
                   placeholder="请回车提交答案或按麦克风录音"
                   className="pr-12"
-                  onKeyPress={(e) => {
+                  onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       // Handle send message
-                      setMessage("")
+                      getLoopsAns(content)
+;                      setMessage("")
                     }
                   }}
                 />
@@ -207,12 +422,11 @@ export default function OfferGooseChat() {
                 </Button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">好的，好的面试官</span>
                 <Button variant="outline" size="sm">
                   清空文本
                 </Button>
-                <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                  回答完毕
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-black-200" onClick={() => enableAudioAndPlay()}>
+                  开启声音
                 </Button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 export async function getToken(appid: string, accessKey: string) {
-    const result = await fetch('https://openspeech.bytedance.com/api/v1/sts/token', {
+    const result = await fetch('http://localhost:3000/api/sts/token', {
       method: 'POST',
       headers: {
         Authorization: `Bearer; ${accessKey}`,
@@ -7,7 +7,7 @@ export async function getToken(appid: string, accessKey: string) {
       },
       body: JSON.stringify({
         appid,
-        duration: 300,  // 单位秒，默认1小时
+        accessKey
       }),
     })
       .then(res => res.json())
