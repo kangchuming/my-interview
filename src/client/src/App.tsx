@@ -3,7 +3,7 @@ import { LabASR, LabTTS } from 'byted-ailab-speech-sdk';
 import { v4 as uuid } from 'uuid';
 import { getToken } from './utils/getToken';
 import { smallChat } from './utils/smallchat';
-import { getAns } from './utils/getLoopAns';
+import { getLoopAns } from './utils/getLoopAns';
 import { buildFullUrl } from './utils/buildFullUrl';
 import { Settings, MessageSquare, User, Bot, Mic, MicOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { PositionType, InterviewPrompt, QuestionSet, EvaluationDimension } from './types/index.js';
+import type { PositionType, InterviewPrompt, QuestionSet, EvaluationDimension } from './types/index';
 
 
 const greetings = {
@@ -310,9 +310,9 @@ export default function OfferGooseChat() {
   }
 
   // 获取面试官的问题
-  const getLoopsAns = async (positionType: PositionType, projectKeywords: InterviewPrompt, skillGaps, message) => {
+  const getLoopsAns = async (positionType: PositionType, projectKeywords: InterviewPrompt, skillGaps: any, message: string) => {
     try {
-      const res = await getAns('');
+      const res = await getLoopAns(positionType, message);
       console.log(111, res);
       
     } catch(err) {
@@ -407,8 +407,8 @@ export default function OfferGooseChat() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       // Handle send message
-                      getLoopsAns(content)
-;                      setMessage("")
+                      getLoopsAns(positionType as PositionType, {} as InterviewPrompt, {}, content);
+                      setMessage("")
                     }
                   }}
                 />

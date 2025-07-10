@@ -13,7 +13,7 @@ export async function getLoopAns(
     let fullContent = '';
 
     // 使用 fetchEventSource 处理 SSE
-    await fetchEventSource(`${API_BASE_URL}/api/smallchat/stream`, {
+    await fetchEventSource(`${API_BASE_URL}/api/paper/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
