@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Docker 数据卷文件
+volumes/
+src/server/volumes/

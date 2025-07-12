@@ -310,9 +310,9 @@ export default function OfferGooseChat() {
   }
 
   // 获取面试官的问题
-  const getLoopsAns = async (positionType: PositionType, projectKeywords: InterviewPrompt, skillGaps, message) => {
+  const getLoopsAns = async (positionType: PositionType, projectKeywords: InterviewPrompt, skillGaps: any, message: string) => {
     try {
-      const res = await getLoopAns('');
+      const res = await getLoopAns(positionType, message);
       console.log(111, res);
       
     } catch(err) {
@@ -407,8 +407,8 @@ export default function OfferGooseChat() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       // Handle send message
-                      getLoopsAns(content)
-;                      setMessage("")
+                      getLoopsAns(positionType as PositionType, {} as InterviewPrompt, {}, content);
+                      setMessage("")
                     }
                   }}
                 />

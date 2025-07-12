@@ -81,17 +81,14 @@ app.post('/api/interview/prompt', async (req: Request, res: Response) => {
       candidateName, 
       projectKeywords = [], 
       skillGaps = [],
-      stage = 'opening' 
+      stage = 'technical' 
     } = req.body;
 
     let prompt = '';
     
     switch (stage) {
-      case 'opening':
-        prompt = InterviewPromptGenerator.generateOpeningPrompt(positionType, candidateName);
-        break;
       case 'technical':
-        prompt = InterviewPromptGenerator.generateTechnicalProbePrompt(positionType, projectKeywords, skillGaps);
+        prompt = InterviewPromptGenerator.generateTechnicalProbePrompt(positionType, projectKeywords, skillGaps, retrievalContext);
         break;
       case 'project':
         prompt = InterviewPromptGenerator.generateProjectExperiencePrompt(projectKeywords);
