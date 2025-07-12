@@ -1,10 +1,14 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import useVoiceStore from '../store/voiceStore';
+
 
 const API_BASE_URL = 'http://localhost:3000';
 
 export async function getLoopAns(
   positionType: string, 
-  candidateName: string,
+  projectKeywords: string[],
+  skillGaps: Array<string>,
+  message: string,
   onContent?: (content: string) => void,
   onComplete?: (fullContent: string) => void,
   onError?: (error: unknown) => void
@@ -19,8 +23,10 @@ export async function getLoopAns(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
-        message: `面试 ${candidateName}`,
-        positionType 
+        message: `面试 ${message}`,
+        positionType ,
+        projectKeywords,
+        skillGaps
       }),
 
       onmessage(event) {
@@ -38,6 +44,8 @@ export async function getLoopAns(
 
           if (data.content) {
             fullContent += data.content;
+
+            useVoiceStore.getState().updateQueContent(fullContent);
             // 实时回调每个内容片段
             onContent?.(data.content);
             console.log('接收到内容片段:', data.content);

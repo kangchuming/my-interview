@@ -80,21 +80,6 @@ export interface RetrievalContext {
 export type PositionType = "前端" | "后端" | "算法" | "产品" | "运营" | "测试" | "数据" | "DevOps";
 export type EvaluationDimension = "技术深度" | "业务理解" | "系统设计" | "问题解决" | "沟通协作";
 
-export interface InterviewPrompt {
-  position: {
-    type: PositionType;
-    level: "Junior" | "Mid" | "Senior" | "Lead";
-    jdKeywords: string[];
-  };
-  candidate: {
-    resumeKeywords: string[];
-    projectHighlights: string[];
-    skillGaps: string[]; // 根据JD自动识别的技能差距
-  };
-  interviewPhases: InterviewPhase[];
-  evaluationMatrix: EvaluationMetric[];
-}
-
 export interface InterviewPhase {
   phase: number;
   name: string;

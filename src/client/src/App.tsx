@@ -1,17 +1,18 @@
 import { useState, useRef, useEffect } from "react"
 import { LabASR, LabTTS } from 'byted-ailab-speech-sdk';
 import { v4 as uuid } from 'uuid';
-import { getToken } from './utils/getToken';
-import { smallChat } from './utils/smallchat';
-import { getLoopAns } from './utils/getLoopAns';
-import { buildFullUrl } from './utils/buildFullUrl';
 import { Settings, MessageSquare, User, Bot, Mic, MicOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import type { PositionType, InterviewPrompt, QuestionSet, EvaluationDimension } from './types/index';
+import useVoiceStore from './store/voiceStore';
+import { getToken } from './utils/getToken';
+import { smallChat } from './utils/smallchat';
+import { getLoopAns } from './utils/getLoopAns';
+import { buildFullUrl } from './utils/buildFullUrl';
+import type { PositionType } from './types/index';
 
 
 const greetings = {
@@ -26,26 +27,40 @@ const greetings = {
 };
 
 export default function OfferGooseChat() {
-  const [message, setMessage] = useState("");
   const [recordStatus, setRecordStatus] = useState(false);
   const [content, setContent] = useState(""); // 设置语音识别的内容
+  const [positionType, setPositionType] = useState('前端');
   const [header, setHeader] = useState(''); // 设置ws连接的提示语
   const recordStopping = useRef(false); // 记录记录停止标志
   const [fullResponse, setFullResponse] = useState({});
   const [openingRemarks, setOpeningRemarks] = useState(""); // 获取开场白
-  const [positionType, setPositionType] = useState("前端"); // 设置岗位开场白
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      type: "system",
+      content: "你应该关注项目经历与JD的匹配度，突出React、性能优化和团队协作经验。",
+      icon: "💡",
+    },
+    {
+      id: 2,
+      type: "interviewer",
+      content:
+        `${greetings[positionType as keyof typeof greetings]}, 请简单介绍一下你过往工作经历`,
+      avatar: "/placeholder.svg?height=40&width=40",
+      name: "面试官",
+      badge: "AI",
+    },
+  ])
   const openingRemarksRef = useRef<string>(''); //获取开场白
   const [audioUrl, setAudioUrl] = useState('');
   const [audioAuthorized, setAudioAuthorized] = useState(false); // 音频授权状态
+  const [ques, getQues] = useState('');
   // 如有需要，可以缓存音频数据
   const downloadCache = useRef(new Uint8Array(0));
   const isServerError = useRef(false);
   const [asrClient] = useState(
     LabASR({
       onMessage: async (text, fullData) => {
-        console.log(111, text);
-        console.log(222, fullData);
-
         setContent(text);
         setFullResponse(fullData);
       },
@@ -62,6 +77,7 @@ export default function OfferGooseChat() {
       }
     })
   );
+  const questionRef = useRef(useVoiceStore.getState().queContent); // 接收大模型返回的内容
 
   const textToSpeech = async (text: string) => {
     setAudioUrl('');
@@ -78,7 +94,7 @@ export default function OfferGooseChat() {
     // 第2步：获取认证
     const token = await getToken(appid, accessKey);
     if (token) {
-      auth.api_jwt = token; 
+      auth.api_jwt = token;
     }
 
 
@@ -131,28 +147,28 @@ export default function OfferGooseChat() {
   const speakInterviewerResponse = async (response: string) => {
     try {
       await textToSpeech(response);
-      
+
       // 等待音频合成完成后播放
       setTimeout(() => {
         if (downloadCache.current.byteLength > 0) {
           const blob = new Blob([downloadCache.current], { type: 'audio/mp3' });
           const blobUrl = URL.createObjectURL(blob);
           const audio = new Audio(blobUrl);
-          
+
           audio.onended = () => {
             URL.revokeObjectURL(blobUrl); // 清理内存
           };
-          
+
           audio.play().catch(error => {
             console.error('播放音频失败:', error);
           });
-          
+
           console.log('正在播放面试官语音...');
         } else {
           console.warn('没有音频数据可播放');
         }
       }, 1500); // 等待1秒确保音频数据接收完成
-      
+
     } catch (error) {
       console.error('语音合成失败:', error);
     }
@@ -166,7 +182,7 @@ export default function OfferGooseChat() {
       await silentAudio.play();
       setAudioAuthorized(true);
       console.log('音频播放已授权');
-      
+
       // 授权成功后自动播放第一条面试官消息
       const firstInterviewerMessage = messages.find(msg => msg.type === "interviewer");
       if (firstInterviewerMessage) {
@@ -186,24 +202,6 @@ export default function OfferGooseChat() {
     { id: 3, title: "你", time: "00:00:15" },
     { id: 4, title: "面试官", time: "00:00:12" },
   ]
-
-  const messages = [
-    {
-      id: 1,
-      type: "system",
-      content: "你应该关注项目经历与JD的匹配度，突出React、性能优化和团队协作经验。",
-      icon: "💡",
-    },
-    {
-      id: 2,
-      type: "interviewer",
-      content:
-        `${greetings[positionType as keyof typeof greetings]}, 请简单介绍一下你过往工作经历`,
-      avatar: "/placeholder.svg?height=40&width=40",
-      name: "面试官",
-      badge: "AI",
-    },
-  ];
 
   const startASR = async () => {
     recordStopping.current = false;
@@ -310,12 +308,20 @@ export default function OfferGooseChat() {
   }
 
   // 获取面试官的问题
-  const getLoopsAns = async (positionType: PositionType, projectKeywords: InterviewPrompt, skillGaps: any, message: string) => {
+  const getLoopsAnsFn = async (positionType: PositionType, projectKeywords: string[], skillGaps: string[], message: string) => {
     try {
-      const res = await getLoopAns(positionType, message);
-      console.log(111, res);
-      
-    } catch(err) {
+      const res = await getLoopAns(positionType, projectKeywords, skillGaps, message);
+      // console.log(111, res);
+      setMessages([...messages, {
+        id: 4,
+        type: "interviewer",
+        content: res,
+        avatar: "/placeholder.svg?height=40&width=40",
+        name: "面试官",
+        badge: "AI",
+      }]);
+
+    } catch (err) {
       console.error(err);
     }
   }
@@ -379,8 +385,35 @@ export default function OfferGooseChat() {
                       </div>
                       <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                         <p className="text-gray-800 leading-relaxed mb-3">{msg.content}</p>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => speakInterviewerResponse(msg.content)}
+                          className="text-xs"
+                        >
+                          🔊 播放语音
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {msg.type === "candidate" && (
+                  <div className="flex items-end gap-4">
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src={msg.avatar || "/candidate.svg"} />
+                      <AvatarFallback>选</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-medium text-gray-900">{msg.name}</span>
+                        <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
+                          {msg.badge}
+                        </Badge>
+                      </div>
+                      <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                        <p className="text-gray-800 leading-relaxed mb-3">{msg.content}</p>
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => speakInterviewerResponse(msg.content)}
                           className="text-xs"
@@ -407,8 +440,23 @@ export default function OfferGooseChat() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       // Handle send message
-                      getLoopsAns(positionType as PositionType, {} as InterviewPrompt, {}, content);
-                      setMessage("")
+                      setMessages([...messages, {
+                        id: 3,
+                        type: "candidate",
+                        content,
+                        avatar: "/candidate.svg?height=40&width=40",
+                        name: "候选人",
+                        badge: "Candidate",
+                      }]);
+                      // getLoopsAns(positionType as PositionType, {} as InterviewPrompt, {}, content);
+                      getLoopsAnsFn(
+                        "前端" as PositionType,
+                        ['微前端', 'RAG', '全栈'],
+                        ["JavaScript基础", "HTML/CSS功底", "浏览器原理", "闭包", "作用域", "内存管理", "React/Vue熟练度", "工程化能力", "性能优化", "前端架构", "组件设计", "状态管理"],
+                        content, // 面试消息
+                      );
+                      setContent("")
+
                     }
                   }}
                 />
