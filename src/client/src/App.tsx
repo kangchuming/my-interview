@@ -58,6 +58,7 @@ export default function OfferGooseChat() {
   // 如有需要，可以缓存音频数据
   const downloadCache = useRef(new Uint8Array(0));
   const isServerError = useRef(false);
+  const idRef = useRef(3); // 更新每次id
   const [asrClient] = useState(
     LabASR({
       onMessage: async (text, fullData) => {
@@ -312,8 +313,8 @@ export default function OfferGooseChat() {
     try {
       const res = await getLoopAns(positionType, projectKeywords, skillGaps, message);
       // console.log(111, res);
-      setMessages([...messages, {
-        id: 4,
+      setMessages(prevMessages => [...prevMessages, {
+        id: idRef.current++,
         type: "interviewer",
         content: res,
         avatar: "/placeholder.svg?height=40&width=40",
@@ -440,8 +441,8 @@ export default function OfferGooseChat() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       // Handle send message
-                      setMessages([...messages, {
-                        id: 3,
+                      setMessages(prevMessages => [...prevMessages, {
+                        id: idRef.current++,
                         type: "candidate",
                         content,
                         avatar: "/candidate.svg?height=40&width=40",
