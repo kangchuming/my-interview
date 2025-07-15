@@ -11,16 +11,6 @@ export default function Entrance() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [countdown, setCountdown] = useState(10)
 
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1)
-      }, 1000)
-
-      return () => clearTimeout(timer)
-    }
-  }, [countdown])
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(true)
@@ -61,9 +51,20 @@ export default function Entrance() {
     navigate('/');
   }
 
+  // 进入模拟面试
+  const handleEnterInterview = () => {
+    navigate('/Interview')
+  }
+
   useEffect(() => {
-    // Additional effect logic here
-  }, [])
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [countdown])
 
   return (
     <div className="w-screen min-h-screen bg-gray-50 py-8">
@@ -123,15 +124,6 @@ export default function Entrance() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Overlapping windows effect */}
-                  <div className="absolute top-4 right-4 bg-white rounded-lg shadow-md p-4 w-48 h-32 border opacity-90">
-                    <div className="text-xs text-gray-600 space-y-2">
-                      <div className="h-2 bg-gray-200 rounded"></div>
-                      <div className="h-2 bg-gray-200 rounded w-3/4"></div>
-                      <div className="h-2 bg-gray-200 rounded w-1/2"></div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -158,9 +150,12 @@ export default function Entrance() {
         </div>
 
         {/* Bottom Link */}
-        <div className="flex justify-center">
-          <Button variant="ghost" className="text-gray-500 hover:text-gray-700" onClick={() => handleHomepage()}>
+        <div className="flex justify-center gap-4 mt-12">
+          <Button variant="ghost" className="text-gray-500 hover:text-gray-700 bg-transparent" onClick={() => handleHomepage()}>
             返回首页
+          </Button>
+          <Button variant="ghost" className="text-gray-500 hover:text-gray-700 !bg-green-500 hover:!bg-green-600" onClick={() => handleEnterInterview()}>
+            进入面试
           </Button>
         </div>
       </div>

@@ -1,16 +1,19 @@
 import type React from "react"
 import { useState, useRef } from "react"
+import { toast } from "sonner"
 import { ChevronLeft, ChevronRight, Check, Upload } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { extractPDFText } from '@/utils/pdf';
+import useJobStore from '@/store/jobStore';
 
 export default function Resume() {
   const navigate = useNavigate(); // 进行路由跳转
   const [resumeText, setResumeText] = useState("")
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { updateResume } = useJobStore();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -35,21 +38,12 @@ export default function Resume() {
     // Handle file upload logic here
     try {
       const res = await extractPDFText(file)
-      console.log(111, res);
-      console.log("File uploaded:", file.name)
+      updateResume(res);
       // 成功提示
-      toast({
-        title: "解析成功！",
-        description: `已成功解析 ${file.name}`,
-        variant: "default",
-      })
+      toast.success("解析成功！");
     } catch (err) {
       // 错误提示
-      toast({
-        title: "解析失败",
-        description: "文件解析失败，请检查文件格式",
-        variant: "destructive",
-      })
+      toast.error("解析失败")
     }
   }
 

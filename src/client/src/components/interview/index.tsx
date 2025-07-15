@@ -12,11 +12,13 @@ import { getToken } from '@/utils/getToken';
 import { smallChat } from '@/utils/smallchat';
 import { getLoopAns } from '@/utils/getLoopAns';
 import { buildFullUrl } from '@/utils/buildFullUrl';
+import { getPositionKey } from "@/utils/getPositionKey";
+import useJobStore from "@/store/jobStore";
 import type { PositionType } from '@/types/index';
 
 
 const greetings = {
-  "前端": "您好！我是今天的前端技术面试官，很高兴见到您。我在前端开发领域有8年经验，主要负责React、Vue、Node等技术栈的面试。",
+  "前端": "您好！我是今天的前端技术面试官，很高兴见到您。我在前端开发领域有8年经验，主要负责前端的面试。",
   "后端": "您好！我是今天的后端技术面试官，很高兴见到您。我在后端开发领域有8年经验，主要关注分布式系统、微服务架构等技术。",
   "算法": "您好！我是今天的算法工程师面试官，很高兴见到您。我在机器学习和推荐系统领域有丰富经验。",
   "产品": "您好！我是今天的产品经理面试官，很高兴见到您。我在产品设计和用户体验方面有多年经验。",
@@ -29,7 +31,7 @@ const greetings = {
 export default function OfferGooseChat() {
   const [recordStatus, setRecordStatus] = useState(false);
   const [content, setContent] = useState(""); // 设置语音识别的内容
-  const [positionType, setPositionType] = useState('前端');
+  const [positionType, setPositionType] = useState('');
   const [header, setHeader] = useState(''); // 设置ws连接的提示语
   const recordStopping = useRef(false); // 记录记录停止标志
   const [fullResponse, setFullResponse] = useState({});
@@ -79,6 +81,7 @@ export default function OfferGooseChat() {
     })
   );
   const questionRef = useRef(useVoiceStore.getState().queContent); // 接收大模型返回的内容
+  const { jobTitle } = useJobStore();
 
   const textToSpeech = async (text: string) => {
     setAudioUrl('');
@@ -328,8 +331,27 @@ export default function OfferGooseChat() {
   }
 
   useEffect(() => {
-    console.log('页面加载完成，等待用户点击播放语音');
-  }, [])
+    const mappedPosition = getPositionKey(jobTitle);
+    setPositionType(mappedPosition);
+
+    // 同时更新 messages
+    setMessages([
+      {
+        id: 1,
+        type: "system",
+        content: "你应该关注项目经历与JD的匹配度，突出React、性能优化和团队协作经验。",
+        icon: "💡",
+      },
+      {
+        id: 2,
+        type: "interviewer",
+        content: `${greetings[mappedPosition]}, 请简单介绍一下你过往工作经历`,
+        avatar: "/placeholder.svg?height=40&width=40",
+        name: "面试官",
+        badge: "AI",
+      },
+    ]);
+  }, [jobTitle])
 
   return (
     <div className="flex h-screen bg-gray-50">
