@@ -1,9 +1,10 @@
 import type React from "react"
 import { useState, useRef } from "react"
+import { ChevronLeft, ChevronRight, Check, Upload } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ChevronLeft, ChevronRight, Check, Upload } from "lucide-react"
+import { extractPDFText } from '@/utils/pdf';
 
 export default function Resume() {
   const navigate = useNavigate(); // 进行路由跳转
@@ -30,15 +31,33 @@ export default function Resume() {
     }
   }
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
     // Handle file upload logic here
-    console.log("File uploaded:", file.name)
+    try {
+      const res = await extractPDFText(file)
+      console.log(111, res);
+      console.log("File uploaded:", file.name)
+      // 成功提示
+      toast({
+        title: "解析成功！",
+        description: `已成功解析 ${file.name}`,
+        variant: "default",
+      })
+    } catch (err) {
+      // 错误提示
+      toast({
+        title: "解析失败",
+        description: "文件解析失败，请检查文件格式",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleFileSelect = () => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     fileInputRef.current?.click()
+    handleFileChange(e);
   }
-  
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -47,8 +66,8 @@ export default function Resume() {
     }
   }
 
-   // 返回简历信息页
-   const handleRebackJob = () => {
+  // 返回简历信息页
+  const handleRebackJob = () => {
     navigate('/job');
   }
 
@@ -57,7 +76,7 @@ export default function Resume() {
     navigate('/entrance');
   }
 
- 
+
   return (
     <div className="w-screen min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
@@ -96,9 +115,8 @@ export default function Resume() {
         <div className="max-w-2xl mx-auto">
           {/* Upload Area */}
           <div
-            className={`border-2 border-dashed rounded-lg p-12 text-center mb-6 transition-colors ${
-              isDragOver ? "border-green-400 bg-green-50" : "border-gray-300 bg-white hover:border-gray-400"
-            }`}
+            className={`border-2 border-dashed rounded-lg p-12 text-center mb-6 transition-colors ${isDragOver ? "border-green-400 bg-green-50" : "border-gray-300 bg-white hover:border-gray-400"
+              }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
