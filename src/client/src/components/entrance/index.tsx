@@ -1,15 +1,18 @@
 import type React from "react"
+import { ChevronRight, Check } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { ChevronRight, Check } from "lucide-react"
+import { extractInfo } from "@/utils/extractInfo";
+import useJobStore from "@/store/jobStore";
 
 export default function Entrance() {
   const navigate = useNavigate(); // 进行路由跳转
   const [resumeText, setResumeText] = useState("")
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [countdown, setCountdown] = useState(10)
+  const [countdown, setCountdown] = useState(20)
+  const { jobTitle, jobDescription, companyName, companyDescription, resume, updateExtractInfo } = useJobStore();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -55,6 +58,33 @@ export default function Entrance() {
   const handleEnterInterview = () => {
     navigate('/Interview')
   }
+
+
+  const getExtratingInfo = async () =>{
+    try {
+      // 修正参数顺序：jobTitle, jobDescription, resume, companyName?, companyDescription?
+      const res = await extractInfo(
+        jobTitle, 
+        jobDescription, 
+        resume, 
+        companyName, 
+        companyDescription,
+      );
+      
+      const parseInfo = JSON.parse(res);
+      updateExtractInfo(parseInfo);
+      
+    } catch (err) {
+      console.error('提取信息错误:', err);
+    }
+  }
+
+  useEffect(() => {
+    // 只有当所有必需的参数都存在时才调用
+    if (jobTitle && jobDescription && resume) {
+      getExtratingInfo();
+    }
+  }, []); // 保持空依赖数组，只在组件首次加载时执行一次
 
   useEffect(() => {
     if (countdown > 0) {
@@ -162,3 +192,4 @@ export default function Entrance() {
     </div>
   )
 }
+

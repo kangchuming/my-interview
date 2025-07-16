@@ -9,12 +9,11 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import useVoiceStore from '@/store/voiceStore';
 import { getToken } from '@/utils/getToken';
-import { smallChat } from '@/utils/smallchat';
 import { getLoopAns } from '@/utils/getLoopAns';
 import { buildFullUrl } from '@/utils/buildFullUrl';
 import { getPositionKey } from "@/utils/getPositionKey";
-import useJobStore from "@/store/jobStore";
 import type { PositionType } from '@/types/index';
+import useJobStore from "@/store/jobStore";
 
 
 const greetings = {
@@ -81,7 +80,8 @@ export default function OfferGooseChat() {
     })
   );
   const questionRef = useRef(useVoiceStore.getState().queContent); // 接收大模型返回的内容
-  const { jobTitle } = useJobStore();
+  const { jobTitle, extractInfo } = useJobStore();
+  const {positionType: positionName, projectKeywords, skillGaps} = extractInfo;
 
   const textToSpeech = async (text: string) => {
     setAudioUrl('');
@@ -281,40 +281,12 @@ export default function OfferGooseChat() {
     setRecordStatus(!recordStatus);
   }
 
-  // 获取开场白
-  const getOpeningRemarks = async () => {
-    try {
-      await smallChat(
-        '前端',
-        '面试候选人',
-        // onContent: 实时接收每个内容片段
-        (content: string) => {
-          console.log('实时接收内容:', content);
-          // 实时更新ref和状态
-          openingRemarksRef.current += content;
-          setOpeningRemarks(openingRemarksRef.current);
-        },
-        // onComplete: 流式传输完成
-        (fullContent: string) => {
-          console.log('开场白获取完成:', fullContent);
-          openingRemarksRef.current = fullContent;
-          setOpeningRemarks(fullContent);
-        },
-        // onError: 错误处理
-        (error: unknown) => {
-          console.error('获取开场白失败:', error);
-        }
-      );
-
-    } catch (err) {
-      console.error('获取开场白失败:', err);
-    }
-  }
-
   // 获取面试官的问题
-  const getLoopsAnsFn = async (positionType: PositionType, projectKeywords: string[], skillGaps: string[], message: string) => {
+  const getLoopsAnsFn = async (positionType: PositionType, projectKeywords: string[], skillGaps: string[], message: string, conversationHistory: Array<{type: string, content: string}>) => {
     try {
-      const res = await getLoopAns(positionType, projectKeywords, skillGaps, message);
+      console.log(555, conversationHistory);
+      
+      const res = await getLoopAns(positionType, projectKeywords, skillGaps, message, conversationHistory);
       // console.log(111, res);
       setMessages(prevMessages => [...prevMessages, {
         id: idRef.current++,
@@ -471,12 +443,15 @@ export default function OfferGooseChat() {
                         name: "候选人",
                         badge: "Candidate",
                       }]);
+                      
+                      
                       // getLoopsAns(positionType as PositionType, {} as InterviewPrompt, {}, content);
                       getLoopsAnsFn(
-                        "前端" as PositionType,
-                        ['微前端', 'RAG', '全栈'],
-                        ["JavaScript基础", "HTML/CSS功底", "浏览器原理", "闭包", "作用域", "内存管理", "React/Vue熟练度", "工程化能力", "性能优化", "前端架构", "组件设计", "状态管理"],
-                        content, // 面试消息
+                        positionName as PositionType,
+                        projectKeywords,
+                        skillGaps,
+                        content, // 只传递当前消息
+                        messages.filter(msg => msg.type !== 'system')
                       );
                       setContent("")
 

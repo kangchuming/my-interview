@@ -9,6 +9,7 @@ export async function getLoopAns(
   projectKeywords: string[],
   skillGaps: Array<string>,
   message: string,
+  conversationHistory: Array<{type: string, content: string}>, 
   onContent?: (content: string) => void,
   onComplete?: (fullContent: string) => void,
   onError?: (error: unknown) => void
@@ -24,9 +25,10 @@ export async function getLoopAns(
       },
       body: JSON.stringify({ 
         message: `面试 ${message}`,
-        positionType ,
+        positionType,
         projectKeywords,
-        skillGaps
+        skillGaps,
+        conversationHistory: `历史会话 ${conversationHistory}`
       }),
 
       onmessage(event) {

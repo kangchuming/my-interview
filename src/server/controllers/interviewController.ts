@@ -12,7 +12,7 @@ import { PositionType, InterviewPrompt, QuestionSet, EvaluationDimension } from 
 export class InterviewController {
     async streamPaper(req: Request, res: Response): Promise<void> {
         
-        const { positionType, projectKeywords, skillGaps, message } = req.body;
+        const { positionType, projectKeywords, skillGaps, message, conversationHistory } = req.body;
 
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
@@ -21,14 +21,14 @@ export class InterviewController {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
 
         try {
-            await this.generateInterviewWithRetrieval(message, res, positionType, projectKeywords, skillGaps);
+            await this.generateInterviewWithRetrieval(message, res, positionType, projectKeywords, skillGaps, conversationHistory);
         } catch (error) {
             console.error('处理请求时出错：', error);
             res.status(500).json({ error: '内部服务器错误' });
         }
     }
 
-    private async generateInterviewWithRetrieval(message: string, res: Response, positionType: PositionType,projectKeywords: string[],skillGaps: string[],): Promise<void> {
+    private async generateInterviewWithRetrieval(message: string, res: Response, positionType: PositionType,projectKeywords: string[],skillGaps: string[],conversationHistory: Array<{type: string, content: string}>): Promise<void> {
         let isEnded = false;
         let retrievalContext = '';
 
@@ -43,20 +43,21 @@ export class InterviewController {
 
             // 2. 构建优化的prompt
             const INTERVIEWER_PROMPT = InterviewPromptGenerator.generateInterviewerPrompt(positionType);
-            const enhancedPrompt = InterviewPromptGenerator.generateTechnicalProbePrompt(positionType,projectKeywords,skillGaps, retrievalContext);
+            const enhancedPrompt = InterviewPromptGenerator.generateTechnicalProbePrompt(positionType,projectKeywords,skillGaps, retrievalContext, conversationHistory);
             console.log('Enhanced prompt built:', enhancedPrompt);
 
 
-            // 4. 使用 LangChain ChatOpenAI 生成论文
+            // 4. 使用 LangChain ChatOpenAI 生成问题
             const chatModel = new ChatOpenAI({
-                modelName: 'doubao-seed-1-6-250615',
+                modelName: 'doubao-seed-1-6-flash-250615',
                 temperature: 0.5,
                 maxTokens: 500,
                 streaming: true,
                 openAIApiKey: process.env.OPENAI_API_KEY,
                 configuration: {
                     baseURL: process.env.OPENAI_BASE_URL,
-                }
+                },
+                
             });
 
             // 5. 决定是否继续流程
@@ -123,9 +124,9 @@ export class InterviewController {
                 }
             }
         } catch (error) {
-            console.error('生成论文时出错: ', error);
+            console.error('生成问题时出错: ', error);
             if (!res.writableEnded) {
-                const errorResponse: StreamResponse = { error: '生成论文时出错，请重试' };
+                const errorResponse: StreamResponse = { error: '生成问题时出错，请重试' };
                 res.write(`data: ${JSON.stringify(errorResponse)}\n\n`);
             }
         } finally {

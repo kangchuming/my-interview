@@ -1,3 +1,4 @@
+import { log } from 'console';
 import { PositionType, InterviewPrompt, QuestionSet, EvaluationDimension } from '../types/index.js';
 
 // ==================== 智能面试 Prompt 生成器 ====================
@@ -9,40 +10,42 @@ export class InterviewPromptGenerator {
     static generateOpeningPrompt(positionType: PositionType, candidateName: string = "候选人"): string {
         return `你是一位资深的${positionType}技术面试官，有8年以上相关经验。
 
-请生成简洁的开场白：
-1. 简单自我介绍（一句话）
-2. 只问1个核心问题：请候选人简单介绍自己的工作经历
+            请生成简洁的开场白：
+            1. 简单自我介绍（一句话）
+            2. 只问1个核心问题：请候选人简单介绍自己的工作经历
 
-要求：
-- 语气自然，不要刻意安慰或提醒
-- 直接进入主题，不要多余的客套话
-- 只问工作经历这一个问题
+            要求：
+            - 语气自然，不要刻意安慰或提醒
+            - 直接进入主题，不要多余的客套话
+            - 只问工作经历这一个问题
 
-开始面试吧！`;
+            开始面试吧！`;
     }
 
     /**
-     * 生成简单的开场白 - 无需AI生成
-     */
-    static generateSimpleOpening(positionType: PositionType, candidateName: string = "候选人"): string {
-        const greetings = {
-            "前端": "您好！我是今天的前端技术面试官，很高兴见到您。我在前端开发领域有8年经验，主要负责React、Vue等技术栈的面试。",
-            "后端": "您好！我是今天的后端技术面试官，很高兴见到您。我在后端开发领域有8年经验，主要关注分布式系统、微服务架构等技术。",
-            "算法": "您好！我是今天的算法工程师面试官，很高兴见到您。我在机器学习和推荐系统领域有丰富经验。",
-            "产品": "您好！我是今天的产品经理面试官，很高兴见到您。我在产品设计和用户体验方面有多年经验。",
-            "测试": "您好！我是今天的测试开发面试官，很高兴见到您。我在自动化测试和质量保障方面有丰富经验。",
-            "运营": "您好！我是今天的运营面试官，很高兴见到您。我在用户增长和数据分析方面有多年经验。",
-            "数据": "您好！我是今天的数据工程师面试官，很高兴见到您。我在大数据处理和数据分析方面有丰富经验。",
-            "DevOps": "您好！我是今天的DevOps面试官，很高兴见到您。我在CI/CD和云原生技术方面有多年经验。"
-        };
+ * 生成信息提取 Prompt - 从招聘信息和简历中提取面试关键参数
+ */
+    static generateExtractionPrompt(jobTitle: string, jobDescription: string, companyName: string, companyDescription: string, resume: string): string {
+        return `分析以下信息，提取面试关键参数：
 
-        const opening = greetings[positionType] || greetings["后端"];
+职位：${jobTitle}
+JD：${jobDescription}
+公司：${companyName} - ${companyDescription}
+简历：${resume}
 
-        return `${opening}
+请提取并输出JSON：
+{
+  "positionType": "前端|后端|算法|产品|测试|运营|数据|DevOps",
+  "projectKeywords": ["项目关键词1", "项目关键词2", "项目关键词3"],
+  "skillGaps": ["技能差距1", "技能差距2"],
+}
 
-今天的面试大概会持续45分钟，我们会从您的项目经验开始聊起，然后深入一些技术细节。整个过程比较轻松，您可以放松一些。
+要求：
+1. positionType 必须从8个选项中选择
+2. projectKeywords 提取简历中3个核心项目/技术
+3. skillGaps 识别JD要求但简历缺少的2个技能
 
-首先，能简单介绍一下您自己吗？重点说说您最近的工作经历和主要负责的项目。`;
+直接返回JSON，无需其他说明。`;
     }
 
     /**
@@ -52,50 +55,58 @@ export class InterviewPromptGenerator {
         positionType: PositionType,
         projectKeywords: string[],
         skillGaps: string[],
-        retrievalContext: string
+        retrievalContext: string,
+        conversationHistory: Array<{ type: string, content: string }> = []
     ): string {
         const positionQuestions = this.getPositionSpecificQuestions(positionType);
-        const gapFocusAreas = skillGaps.slice(0, 2); // 重点关注前2个技能差距
-
-        // 解析retrievalContext中的相关题目和内容
+        const gapFocusAreas = skillGaps.slice(0, 2);
+        
+        console.log(333, conversationHistory);
+        
+        // 构建对话历史上下文
+        let conversationContext = '';
+        if (conversationHistory.length > 0) {
+            conversationContext = `
+    **对话历史：**
+    ${conversationHistory.map(msg => 
+        `${msg.type === 'interviewer' ? '面试官' : '候选人'}: ${msg.content}`
+    ).join('\n')}
+    
+    **重要：基于对话历史，绝不重复已问过的问题，必须深入追问候选人提到的技术点。**
+            `;
+        }
+    
+        // 检索内容
         let retrievalGuidance = '';
         if (retrievalContext && retrievalContext.trim()) {
-            // 从检索内容中提取问题相关的指导
             retrievalGuidance = `
-
-**检索到的相关题目和参考内容：**
-${retrievalContext}
-
-**基于检索内容的提问指导：**
-1. 优先从上述检索到的相关题目中选择合适的问题进行提问
-2. 结合候选人的项目背景，将这些经典题目进行情境化改造
-3. 可以参考检索内容中的技术要点，设计深入的追问
-4. 注意将理论知识与实际项目经验相结合`;
+    **检索内容：** ${retrievalContext}
+    **策略：** 优先使用检索题目，结合候选人项目经验提问。`;
         }
-
-        return `**当前面试阶段：** 技术深度探查
-
-**探查重点：**
-- 候选人提到的项目：${projectKeywords.join('、')}
-- 需要重点评估的技能：${gapFocusAreas.join('、')}
-
-**提问策略：**
-1. 从候选人熟悉的项目入手，逐步深入技术细节
-2. 通过"如何解决"、"为什么这样设计"等问题考查思考深度
-3. 如果发现知识盲点，不要直接指出，而是通过场景化问题引导
-4. 优先使用检索到的相关题目，确保问题的专业性和深度${retrievalGuidance}
-
-**标准问题方向（如无检索内容时使用）：**
-${positionQuestions.slice(0, 3).map((q, i) => `${i + 1}. ${q}`).join('\n')}
-
-**重要提醒：**
-- 每次只问1-2个问题，给候选人充分思考和回答的时间
-- 根据候选人的回答调整问题难度
-- 关注候选人的思维逻辑，而不仅仅是标准答案
-- 如果有检索到的相关内容，优先基于这些内容进行提问
-- 将检索到的经典题目与候选人的实际项目经验结合起来
-
-请开始技术提问。`;
+    
+        return `你是资深${positionType}技术面试官。基于对话上下文进行有针对性的提问。
+    
+    **候选人背景：** ${projectKeywords.join('、')}
+    **评估重点：** ${gapFocusAreas.join('、')}${retrievalGuidance}
+    
+    ${conversationContext}
+    
+    **核心原则：**
+    1. **禁止重复提问** - 不问已回答过的问题
+    2. **智能追问** - 基于候选人回答的技术点深入挖掘
+    3. **简洁提问** - 每次最多2个问题
+    4. **灵活应对** - 根据回答类型调整策略
+    
+    **应对策略：**
+    - 技术回答详细 → 深入追问实现细节、设计考虑
+    - 技术回答简单 → 基于已提到技术点继续挖掘  
+    - 表示不了解 → 立即转向熟悉技术或项目经历
+    - 自我介绍 → 从工作经历或项目开始提问
+    
+    **参考方向：**
+    ${positionQuestions.slice(0, 2).map((q, i) => `${i + 1}. ${q}`).join('\n')}
+    
+    请提出1个合适的面试问题。`;
     }
 
     // 面试官系统提示词生成函数
@@ -165,6 +176,7 @@ ${currentPosition.focus.split('、').map(item => `- ${item}`).join('\n')}
 3. **思维过程重视**：关注候选人的思考逻辑，而不仅仅是标准答案
 4. **适度引导**：当候选人思路不清时，给予适当提示和引导
 5. **检索内容优先**：优先使用提供的相关题目和参考内容进行提问
+6. **智能话题转换**：当候选人表示不了解某技术时，立即转向其熟悉领域，避免重复提问
 
 **提问策略：**
 - 每次提问控制在1-2个问题，给候选人充分思考时间
@@ -173,6 +185,7 @@ ${currentPosition.focus.split('、').map(item => `- ${item}`).join('\n')}
 - 如果提供了检索到的相关题目，优先从中选择合适的问题
 - 将经典${positionType}技术问题与候选人的实际经验相结合
 - 重点考查${positionType}领域的核心技能和实战经验
+- **关键原则：遇到候选人不熟悉的技术时，立即切换到其擅长的技术栈或项目经历**
 
 **评估重点：**
 - ${positionType}技术深度和广度
@@ -187,6 +200,7 @@ ${currentPosition.focus.split('、').map(item => `- ${item}`).join('\n')}
 - 保持耐心和鼓励的态度
 - 适时给予正面反馈
 - 控制面试节奏，确保深度和效率的平衡
+- **核心原则：当候选人表示不了解某项技术时，不要坚持或重复，立即转向其工作经历中的技术栈**
 
 请严格按照提供的面试指导进行提问，充分利用检索到的相关内容，确保面试的专业性和针对性。作为${positionType}面试官，请重点关注该领域的核心技术能力。`;
     };
