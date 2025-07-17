@@ -38,8 +38,8 @@ class PDFVectorDB {
     constructor(config: PDFVectorDBConfig) {
         this.config = {
             milvusAddress: 'localhost:19530', // 移除冒号后的空格
-            chunkSize: 400,
-            chunkOverlap: 100,
+            chunkSize: 300,
+            chunkOverlap: 50,
             ...config
         };
 
@@ -71,26 +71,19 @@ class PDFVectorDB {
         try {
             // 检查集合是否已经存在
             const collections = await this.milvusClient.listCollections();
+            console.log(0, collections);
+            const res = await this.milvusClient.describeCollection({
+                collection_name: "quick_setup"
+            });
+            console.log(111, res);
+            
             const existingCollection = collections.data?.find(
                 (col: any) => col.name === this.config.collectionName
             );
 
             if (existingCollection) {
-                console.log(`集合 ${this.config.collectionName} 已存在，正在删除以重新创建...`);
-                // 先释放集合
-                try {
-                    await this.milvusClient.releaseCollection({
-                        collection_name: this.config.collectionName
-                    });
-                } catch (error) {
-                    console.log('释放集合时出错(可忽略):', error);
-                }
-
-                // 删除现有集合
-                await this.milvusClient.dropCollection({
-                    collection_name: this.config.collectionName
-                });
-                console.log(`集合 ${this.config.collectionName} 已删除`);
+                console.log(`集合 ${this.config.collectionName} 已存在`);
+                return;
             }
 
             // 创建新集合
@@ -112,9 +105,9 @@ class PDFVectorDB {
                     },
                     {
                         name: 'text',
-                        description: '原始文本内容',
+                        description: '面试题目或知识点内容',
                         data_type: 'VarChar',
-                        max_length: 65535,
+                        max_length: 8192,
                     },
                     {
                         name: 'source',
@@ -126,7 +119,50 @@ class PDFVectorDB {
                         name: 'page',
                         description: '页码',
                         data_type: 'Int64'
-                    }
+                    },
+                    // === AI面试场景专用字段 ===
+                    {
+                        name: 'company',
+                        description: '面试公司(华为/腾讯/阿里/美团/百度/字节/京东等)',
+                        data_type: 'VarChar',
+                        max_length: 50,
+                    },
+                    {
+                        name: 'position',
+                        description: '职位类型(前端/后端/算法/测试/产品/运营)',
+                        data_type: 'VarChar',
+                        max_length: 50,
+                    },
+                    {
+                        name: 'difficulty',
+                        description: '面试难度级别(初级/中级/高级)',
+                        data_type: 'VarChar',
+                        max_length: 20,
+                    },
+                    {
+                        name: 'question_type',
+                        description: '问题类型(技术基础/项目经验/算法题/系统设计/HR问题)',
+                        data_type: 'VarChar',
+                        max_length: 50,
+                    },
+                    {
+                        name: 'tech_stack',
+                        description: '相关技术栈(React/Vue/Java/Python等)',
+                        data_type: 'VarChar',
+                        max_length: 200,
+                    },
+                    {
+                        name: 'interview_round',
+                        description: '面试轮次(一面/二面/三面/终面/HR面)',
+                        data_type: 'VarChar',
+                        max_length: 30,
+                    },
+                    {
+                        name: 'keywords',
+                        description: '关键词标签(用于快速检索)',
+                        data_type: 'VarChar',
+                        max_length: 500,
+                    },
                 ]
             });
 
@@ -146,7 +182,7 @@ class PDFVectorDB {
                 index_name: 'myindex',
                 index_type: "HNSW",
                 metric_type: "IP",
-                params: { efConstruction: 100, M: 24 }
+                params: { efConstruction: 200, M: 24 }
             });
 
             console.log('索引创建成功：', createIndexResult);
@@ -191,77 +227,46 @@ class PDFVectorDB {
 
     // 生成嵌入向量
     async generateEmbeddings(texts: string[]): Promise<number[][]> {
-        console.log(`正在为 ${texts.length} 个文本片段生成嵌入向量...`);
+        console.log(`🚀 生成 ${texts.length} 个向量...`);
 
-        const batchSize = 10; // 批处理大小，避免API限制
+        const batchSize = 25; // 增加批次大小
+        const delay = 500;    // 减少延迟到0.5秒
         const embeddings: number[][] = [];
 
         for (let i = 0; i < texts.length; i += batchSize) {
             const batch = texts.slice(i, i + batchSize);
-            const batchNumber = Math.floor(i / batchSize) + 1;
-            const totalBatches = Math.ceil(texts.length / batchSize);
+            const progress = ((i / texts.length) * 100).toFixed(1);
             
-            console.log(`\n=== 处理批次 ${batchNumber}/${totalBatches} ===`);
-            console.log(`批次起始索引: ${i}, 批次大小: ${batch.length}`);
-            console.log(`当前累计向量数量: ${embeddings.length}`);
+            console.log(`📊 向量生成进度: ${progress}% (${i + batch.length}/${texts.length})`);
 
             try {
                 const batchEmbeddings = await this.embeddings.embedDocuments(batch);
-                
-                console.log(`批次 ${batchNumber} API返回的向量数量: ${batchEmbeddings.length}`);
-                console.log(`批次 ${batchNumber} API返回数据类型:`, typeof batchEmbeddings);
-                console.log(`批次 ${batchNumber} 是否为数组:`, Array.isArray(batchEmbeddings));
-                
-                if (batchEmbeddings.length > 0) {
-                    console.log(`批次 ${batchNumber} 第一个向量维度:`, batchEmbeddings[0]?.length);
-                    console.log(`批次 ${batchNumber} 第一个向量类型:`, typeof batchEmbeddings[0]);
-                }
-
-                // 确保向量是标准的number[]格式
-                const normalizedEmbeddings = batchEmbeddings.map((embedding, idx) => {
-                    const normalized = Array.isArray(embedding) 
+                const normalized = batchEmbeddings.map(embedding => 
+                    Array.isArray(embedding) 
                         ? embedding.map(val => Number(val))
-                        : Array.from(embedding as any).map(val => Number(val));
-                    
-                    console.log(`  批次 ${batchNumber} 索引 ${idx} 标准化后维度: ${normalized.length}`);
-                    return normalized;
-                });
+                        : Array.from(embedding as any).map(val => Number(val))
+                );
                 
-                // 检查批次向量数量是否与输入文本数量匹配
-                if (normalizedEmbeddings.length !== batch.length) {
-                    console.error(`❌ 批次 ${batchNumber} 向量数量不匹配！`);
-                    console.error(`输入文本数量: ${batch.length}, 返回向量数量: ${normalizedEmbeddings.length}`);
-                    throw new Error(`批次 ${batchNumber} 向量数量不匹配`);
-                }
+                embeddings.push(...normalized);
                 
-                console.log(`批次 ${batchNumber} 准备添加 ${normalizedEmbeddings.length} 个向量`);
-                embeddings.push(...normalizedEmbeddings);
-                console.log(`批次 ${batchNumber} 处理完成，新的累计向量数量: ${embeddings.length}`);
-
-                // 避免API限制
+                // 减少等待时间
                 if (i + batchSize < texts.length) {
-                    console.log(`等待1秒避免API限制...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await new Promise(resolve => setTimeout(resolve, delay));
                 }
-            } catch (error) {
-                console.error(`批次 ${batchNumber} 生成嵌入向量失败:`, error);
+                
+            } catch (error: any) {
+                if (error.message?.includes('AllocationQuota')) {
+                    console.log(`⏸️ 配额限制，等待 3 秒...`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    // 重试当前批次
+                    i -= batchSize;
+                    continue;
+                }
                 throw error;
             }
         }
 
-        console.log('\n=== 嵌入向量生成完成 ===');
-        console.log(`输入文本数量: ${texts.length}`);
-        console.log(`生成向量数量: ${embeddings.length}`);
-        console.log('样本向量维度:', embeddings[0]?.length);
-        console.log('样本向量类型:', typeof embeddings[0]?.[0]);
-        
-        // 最终检查
-        if (embeddings.length !== texts.length) {
-            console.error(`❌ 最终向量数量不匹配！`);
-            console.error(`输入文本数量: ${texts.length}, 生成向量数量: ${embeddings.length}`);
-            throw new Error(`向量生成失败：数量不匹配`);
-        }
-
+        console.log(`✅ 向量生成完成: ${embeddings.length} 个`);
         return embeddings;
     }
 
@@ -389,7 +394,10 @@ class PDFVectorDB {
                 data: [normalizedQueryEmbedding],
                 output_fields: ['text', 'source', 'page'],
                 limit: topK,
-                metric_type: "IP"  // 改为IP度量类型，与索引创建时一致
+                metric_type: "IP",  // 改为IP度量类型，与索引创建时一致
+                params: {
+                    ef: 64
+                }
             });
 
             console.log('搜索结果原始数据:', JSON.stringify(searchResult, null, 2));
@@ -399,47 +407,95 @@ class PDFVectorDB {
             throw error;
         }
     }
-    // 主要构建流程
+
+    // 添加快速检查方法
+    async getCollectionStats() {
+        try {
+            const stats = await this.milvusClient.getCollectionStatistics({
+                collection_name: this.config.collectionName
+            });
+            console.log('📊 集合统计:', stats);
+            return stats;
+        } catch (error) {
+            console.log('⚠️ 无法获取集合统计');
+            return null;
+        }
+    }
+
+    // 优化构建流程 - 分批次处理
     async buildVectorDB() {
         try {
-            console.log('开始构建PDF向量数据库...');
+            console.log('🚀 开始构建PDF向量数据库...');
 
-            // 1. 初始化Milvus
+            // 1-3. 快速初始化
             await this.initMilvus();
-
-            // 2. 创建集合
             await this.createCollection();
-
-            // 3. 创建索引 (在插入数据前创建)
             await this.createIndex();
 
-            // 4. 加载PDF文档
-            const documents = await this.loadPDFDocuments();
-            if (documents.length === 0) {
-                throw new Error('没有找到PDF文档');
+            // 4. 检查是否已有数据
+            const existingData = await this.getCollectionStats();
+            if (existingData?.row_count > 0) {
+                console.log(`✅ 发现已有 ${existingData.row_count} 条数据，跳过构建`);
+                await this.loadCollection();
+                return;
             }
 
-            // 5. 分割文档
-            const splitDocuments = await this.splitDocuments(documents);
-
-            // 6. 生成嵌入向量
-            const texts = splitDocuments.map(doc => doc.pageContent);
-            console.log('准备生成向量的文本数量:', texts.length);
-            const embeddings = await this.generateEmbeddings(texts);
-            console.log('向量生成完成，数量:', embeddings.length);
-
-            // 7. 插入数据
-            await this.insertData(splitDocuments, embeddings);
-
-            // 8. 加载集合到内存 (必须在插入数据后)
-            await this.loadCollection();
-
-            console.log('✅ PDF向量数据库构建完成！');
+            // 5. 分批处理文档
+            await this.buildInBatches();
 
         } catch (error) {
-            console.error('构建向量数据库失败:', error);
+            console.error('❌ 构建向量数据库失败:', error);
             throw error;
         }
+    }
+
+    // 分批次构建
+    private async buildInBatches() {
+        console.log('📚 开始分批处理文档...');
+        
+        const documents = await this.loadPDFDocuments();
+        if (documents.length === 0) {
+            throw new Error('没有找到PDF文档');
+        }
+
+        const splitDocuments = await this.splitDocuments(documents);
+        
+        // 分批处理，每批200个文档片段
+        const batchSize = 200;
+        const totalBatches = Math.ceil(splitDocuments.length / batchSize);
+        
+        console.log(`📊 总计 ${splitDocuments.length} 个片段，分 ${totalBatches} 批处理`);
+
+        for (let i = 0; i < splitDocuments.length; i += batchSize) {
+            const batch = splitDocuments.slice(i, i + batchSize);
+            const batchNumber = Math.floor(i / batchSize) + 1;
+            
+            console.log(`\n🔄 处理批次 ${batchNumber}/${totalBatches} (${batch.length} 个片段)`);
+            
+            try {
+                // 生成向量并插入
+                const texts = batch.map(doc => doc.pageContent);
+                const embeddings = await this.generateEmbeddings(texts);
+                await this.insertData(batch, embeddings);
+                
+                console.log(`✅ 批次 ${batchNumber} 完成`);
+                
+                // 每批次后短暂休息
+                if (batchNumber < totalBatches) {
+                    console.log('⏸️ 批次间休息 2 秒...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+                
+            } catch (error) {
+                console.error(`❌ 批次 ${batchNumber} 失败:`, error);
+                console.log(`💡 可以从批次 ${batchNumber} 继续: resumeBuildVectorDB(${i})`);
+                throw error;
+            }
+        }
+
+        // 最后加载集合
+        await this.loadCollection();
+        console.log('✅ 分批构建完成！');
     }
 }
 

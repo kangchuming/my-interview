@@ -24,8 +24,6 @@ export default function Component() {
 
     // 点击左方岗位，填充右方岗位名称和描述
     const handleJobInsert = (item: {name: string, description: string}) => {
-        console.log(111, item);
-        
         setSelectedPosition(item.name);
         updateJobTitle(item.name);
         updateJobDescription(item.description);

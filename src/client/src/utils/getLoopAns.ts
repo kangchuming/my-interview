@@ -17,8 +17,15 @@ export async function getLoopAns(
   try {
     let fullContent = '';
 
+    // 确保conversationHistory是正确的格式
+  const formattedHistory = conversationHistory.map(msg => ({
+    type: msg.type,
+    content: msg.content
+  }));
+  console.log('发送给服务端的数据:', JSON.stringify(formattedHistory, null, 2));
+  
     // 使用 fetchEventSource 处理 SSE
-    await fetchEventSource(`${API_BASE_URL}/api/paper/stream`, {
+    await fetchEventSource(`${API_BASE_URL}/api/question/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -28,7 +35,7 @@ export async function getLoopAns(
         positionType,
         projectKeywords,
         skillGaps,
-        conversationHistory: `历史会话 ${conversationHistory}`
+        conversationHistory: formattedHistory
       }),
 
       onmessage(event) {

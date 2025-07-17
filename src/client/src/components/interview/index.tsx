@@ -81,8 +81,8 @@ export default function OfferGooseChat() {
   );
   const questionRef = useRef(useVoiceStore.getState().queContent); // 接收大模型返回的内容
   const { jobTitle, extractInfo } = useJobStore();
-  const {positionType: positionName, projectKeywords, skillGaps} = extractInfo;
-
+  const { positionType: positionName, projectKeywords, skillGaps } = extractInfo;
+  
   const textToSpeech = async (text: string) => {
     setAudioUrl('');
     downloadCache.current = new Uint8Array(0);
@@ -282,10 +282,8 @@ export default function OfferGooseChat() {
   }
 
   // 获取面试官的问题
-  const getLoopsAnsFn = async (positionType: PositionType, projectKeywords: string[], skillGaps: string[], message: string, conversationHistory: Array<{type: string, content: string}>) => {
+  const getLoopsAnsFn = async (positionType: PositionType, projectKeywords: string[], skillGaps: string[], message: string, conversationHistory: Array<{ type: string, content: string }>) => {
     try {
-      console.log(555, conversationHistory);
-      
       const res = await getLoopAns(positionType, projectKeywords, skillGaps, message, conversationHistory);
       // console.log(111, res);
       setMessages(prevMessages => [...prevMessages, {
@@ -435,23 +433,30 @@ export default function OfferGooseChat() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       // Handle send message
-                      setMessages(prevMessages => [...prevMessages, {
+                      // 构建包含新消息的完整数组
+                      const newMessage = {
                         id: idRef.current++,
                         type: "candidate",
                         content,
                         avatar: "/candidate.svg?height=40&width=40",
                         name: "候选人",
                         badge: "Candidate",
-                      }]);
-                      
-                      
+                      };
+
+                      const updatedMessages = [...messages, newMessage];
+
+                      setMessages(updatedMessages);
+
                       // getLoopsAns(positionType as PositionType, {} as InterviewPrompt, {}, content);
                       getLoopsAnsFn(
                         positionName as PositionType,
                         projectKeywords,
                         skillGaps,
                         content, // 只传递当前消息
-                        messages.filter(msg => msg.type !== 'system')
+                        updatedMessages.filter(msg => msg.type !== 'system').map(msg => ({
+                          type: msg.type,
+                          content: msg.content
+                        }))
                       );
                       setContent("")
 

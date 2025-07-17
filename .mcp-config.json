@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "interview-server": {
+      "command": "node",
+      "args": ["dist/mcp/interview-mcp-server.js"],
+      "env": {
+        "MILVUS_ADDRESS": "localhost:19530",
+        "OPENAI_API_KEY": "1c35dbe9-3d3c-47d6-a71d-84176578daef"
+      }
+    }
+  }
+} 

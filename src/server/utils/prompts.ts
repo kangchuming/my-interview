@@ -58,55 +58,107 @@ JD：${jobDescription}
         retrievalContext: string,
         conversationHistory: Array<{ type: string, content: string }> = []
     ): string {
+
+        console.log(555, positionType);
+        
         const positionQuestions = this.getPositionSpecificQuestions(positionType);
+        console.log(666,positionQuestions);
+        
         const gapFocusAreas = skillGaps.slice(0, 2);
-        
+
         console.log(333, conversationHistory);
-        
+
         // 构建对话历史上下文
         let conversationContext = '';
         if (conversationHistory.length > 0) {
             conversationContext = `
-    **对话历史：**
-    ${conversationHistory.map(msg => 
-        `${msg.type === 'interviewer' ? '面试官' : '候选人'}: ${msg.content}`
-    ).join('\n')}
-    
-    **重要：基于对话历史，绝不重复已问过的问题，必须深入追问候选人提到的技术点。**
-            `;
-        }
-    
-        // 检索内容
-        let retrievalGuidance = '';
-        if (retrievalContext && retrievalContext.trim()) {
-            retrievalGuidance = `
-    **检索内容：** ${retrievalContext}
-    **策略：** 优先使用检索题目，结合候选人项目经验提问。`;
-        }
-    
-        return `你是资深${positionType}技术面试官。基于对话上下文进行有针对性的提问。
-    
-    **候选人背景：** ${projectKeywords.join('、')}
-    **评估重点：** ${gapFocusAreas.join('、')}${retrievalGuidance}
-    
-    ${conversationContext}
-    
-    **核心原则：**
-    1. **禁止重复提问** - 不问已回答过的问题
-    2. **智能追问** - 基于候选人回答的技术点深入挖掘
-    3. **简洁提问** - 每次最多2个问题
-    4. **灵活应对** - 根据回答类型调整策略
-    
-    **应对策略：**
-    - 技术回答详细 → 深入追问实现细节、设计考虑
-    - 技术回答简单 → 基于已提到技术点继续挖掘  
-    - 表示不了解 → 立即转向熟悉技术或项目经历
-    - 自我介绍 → 从工作经历或项目开始提问
-    
-    **参考方向：**
-    ${positionQuestions.slice(0, 2).map((q, i) => `${i + 1}. ${q}`).join('\n')}
-    
-    请提出1个合适的面试问题。`;
+        **对话历史：**
+        ${conversationHistory.map(msg =>
+                    `${msg.type === 'interviewer' ? '面试官' : '候选人'}: ${msg.content}`
+                ).join('\n')}
+        
+        **重要：基于对话历史，绝不重复已问过的问题，必须深入追问候选人提到的技术点。**
+                `;
+            }
+
+            // 检索内容
+            let retrievalGuidance = '';
+            if (retrievalContext && retrievalContext.trim()) {
+                retrievalGuidance = `
+        **检索内容：** ${retrievalContext}
+        **策略：** 优先使用检索题目，结合候选人项目经验提问。`;
+            }
+
+            // 分析最后一轮对话，判断是否需要追问
+            let followUpStrategy = '';
+            if (conversationHistory.length >= 2) {
+                const lastCandidate = conversationHistory[conversationHistory.length - 1];
+                const lastInterviewer = conversationHistory[conversationHistory.length - 2];
+                
+                if (lastCandidate?.type === 'candidate' && lastCandidate.content.length > 100) {
+                    followUpStrategy = `
+    **关键：候选人刚才的回答很详细，必须基于以下技术点深入追问：**
+    - 提取候选人回答中的具体技术实现细节
+    - 询问遇到的具体问题和解决方案  
+    - 验证对底层原理的理解
+    - 不要跳转到新话题，必须深挖当前技术栈
+
+    **追问示例方向：**
+    "你刚才提到了[具体技术点]，能详细说说你在实现过程中遇到了什么具体问题吗？"
+    "关于[技术细节]，你是怎么考虑的？有没有考虑过其他方案？"
+    "在[具体场景]下，你是如何优化的？效果如何衡量？"
+                    `;
+                }
+            }
+
+            // 在 followUpStrategy 之前添加
+            let emergencySwitch = '';
+            if (conversationHistory.length >= 1) {
+                const lastCandidate = conversationHistory[conversationHistory.length - 1];
+                if (lastCandidate?.type === 'candidate') {
+                    // 检测候选人是否表示不了解或要求换话题
+                    const notFamiliarSignals = [
+                        '不太了解', '不清楚', '不熟悉', '没有经验', '没做过',
+                        '可以聊聊', '能说说', '换个话题', '其实我更熟悉'
+                    ];
+                    
+                    const hasNotFamiliarSignal = notFamiliarSignals.some(signal => 
+                        lastCandidate.content.includes(signal)
+                    );
+                    
+                    if (hasNotFamiliarSignal) {
+                        emergencySwitch = `
+**紧急切换策略 - 最高优先级：**
+候选人已明确表示对当前技术不了解或要求换话题，必须立即切换！
+
+**立即执行：**
+1. 停止当前技术话题的追问
+2. 切换到候选人熟悉的技术栈（如：LangChain、Milvus、React等）
+3. 用鼓励性的语言过渡："好的，那我们聊聊你更熟悉的LangChain..."
+
+**绝对禁止：**
+- 继续追问候选人不熟悉的技术
+- 忽视候选人的换话题请求
+- 坚持当前话题不放
+                        `;
+                    }
+                }
+            }
+
+            return `你是资深${positionType}技术面试官。
+        
+${emergencySwitch}
+
+**候选人背景：** ${projectKeywords.join('、')}
+${conversationContext}
+${followUpStrategy}
+
+**策略优先级（从高到低）：**
+1. 🚨 候选人表示不了解 → 立即切换话题（最高优先级）
+2. 🔄 候选人详细回答 → 深入追问  
+3. 🎯 新话题探索 → 基于候选人强项提问
+
+请严格按照优先级执行面试策略。`;
     }
 
     // 面试官系统提示词生成函数

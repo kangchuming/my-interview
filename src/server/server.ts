@@ -79,6 +79,8 @@ app.post('/api/interview/prompt', async (req: Request, res: Response) => {
     const { 
       positionType, 
       candidateName, 
+      retrievalContext,
+      conversationHistory,
       projectKeywords = [], 
       skillGaps = [],
       stage = 'technical' 
@@ -88,7 +90,7 @@ app.post('/api/interview/prompt', async (req: Request, res: Response) => {
     
     switch (stage) {
       case 'technical':
-        prompt = InterviewPromptGenerator.generateTechnicalProbePrompt(positionType, projectKeywords, skillGaps, retrievalContext);
+        prompt = InterviewPromptGenerator.generateTechnicalProbePrompt(positionType, projectKeywords, skillGaps, retrievalContext, conversationHistory);
         break;
       case 'project':
         prompt = InterviewPromptGenerator.generateProjectExperiencePrompt(projectKeywords);
@@ -123,7 +125,7 @@ app.post('/api/interview/quick-opening', async (req: Request, res: Response) => 
   try {
     const { positionType, candidateName } = req.body;
     
-    const opening = InterviewPromptGenerator.generateSimpleOpening(positionType, candidateName);
+    const opening = InterviewPromptGenerator.generateInterviewerPrompt(positionType);
     
     res.json({ 
       success: true, 

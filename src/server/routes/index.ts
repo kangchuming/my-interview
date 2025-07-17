@@ -20,7 +20,7 @@ router.post('/extracting/info', (req: Request, res: Response) => {
 });
 
 // 提问生成路由
-router.post('/paper/stream', (req: Request, res: Response) => {
+router.post('/question/stream', (req: Request, res: Response) => {
     interviewController.streamPaper(req, res);
 });
 
