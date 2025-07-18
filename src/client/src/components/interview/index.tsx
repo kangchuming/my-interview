@@ -82,7 +82,7 @@ export default function OfferGooseChat() {
   const questionRef = useRef(useVoiceStore.getState().queContent); // 接收大模型返回的内容
   const { jobTitle, extractInfo } = useJobStore();
   const { positionType: positionName, projectKeywords, skillGaps } = extractInfo;
-  
+
   const textToSpeech = async (text: string) => {
     setAudioUrl('');
     downloadCache.current = new Uint8Array(0);
@@ -295,6 +295,9 @@ export default function OfferGooseChat() {
         badge: "AI",
       }]);
 
+      // 执行语音的播放
+      speakInterviewerResponse(res);
+
     } catch (err) {
       console.error(err);
     }
@@ -427,17 +430,26 @@ export default function OfferGooseChat() {
               <div className="flex-1 relative">
                 <Input
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={(e) => {// 如果当前正在清空，则忽略 onChange
+                    if (e.target.value === "" && content === "") {
+                      return;
+                    }
+                    setContent(e.target.value)
+                  }}
                   placeholder="请回车提交答案或按麦克风录音"
                   className="pr-12"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
-                      // Handle send message
+                      // 先保存当前内容
+                      const currentContent = content;
+
+                      // 立即清空输入框
+                      setContent("");
                       // 构建包含新消息的完整数组
                       const newMessage = {
                         id: idRef.current++,
                         type: "candidate",
-                        content,
+                        content: currentContent,
                         avatar: "/candidate.svg?height=40&width=40",
                         name: "候选人",
                         badge: "Candidate",
@@ -446,20 +458,19 @@ export default function OfferGooseChat() {
                       const updatedMessages = [...messages, newMessage];
 
                       setMessages(updatedMessages);
-
                       // getLoopsAns(positionType as PositionType, {} as InterviewPrompt, {}, content);
                       getLoopsAnsFn(
                         positionName as PositionType,
                         projectKeywords,
                         skillGaps,
-                        content, // 只传递当前消息
+                        currentContent, // 只传递当前消息
                         updatedMessages.filter(msg => msg.type !== 'system').map(msg => ({
                           type: msg.type,
                           content: msg.content
                         }))
                       );
-                      setContent("")
 
+                      changeRecordStatus();
                     }
                   }}
                 />
