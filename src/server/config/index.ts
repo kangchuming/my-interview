@@ -24,7 +24,7 @@ export const config = {
         chunkSize: 350, // 文本块大小
         chunkOverlap: 100 //块间重叠
     },
-    
+
     // OpenAI 配置
     openai: {
         apiKey: process.env.OPENAI_API_KEY!,
@@ -33,19 +33,24 @@ export const config = {
         temperature: 0.3,
         maxTokens: 5000
     },
-    
+
     // 服务器配置
     server: {
         port: parseInt(process.env.PORT || '3000', 10),
         timeout: 30000
     },
-    
+
     // CORS 配置
     cors: {
         allowedOrigins: [
             'https://paper-generation-client.vercel.app',
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
+            'http://localhost:5173',  // 添加这个
+            'http://127.0.0.1:5173',  // 添加这个
+            'http://127.0.0.1:5173',  // 添加这个
+            'http://10.219.192.172:5173',
+            'http://192.168.1.100:5173',
+            'http://localhost:3008',
+            'http://127.0.0.1:3008',
             'http://localhost:3000',
             'http://127.0.0.1:3000'
         ]

@@ -1,5 +1,5 @@
 export async function getToken(appid: string, accessKey: string) {
-    const result = await fetch('http://localhost:3000/api/sts/token', {
+    const result = await fetch('/api/sts/token', {
       method: 'POST',
       headers: {
         Authorization: `Bearer; ${accessKey}`,

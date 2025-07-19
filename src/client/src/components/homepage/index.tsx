@@ -160,7 +160,7 @@ export default function Homepage() {
 
               {/* CTA Button */}
               <div className="flex flex-col items-center lg:items-start">
-                <Button className="!bg-blue-600 hover:!bg-blue-700 text-white px-12 py-4 text-lg rounded-lg mb-2">
+                <Button className="!bg-blue-600 hover:!bg-blue-700 text-white px-12 py-4 text-lg rounded-lg mb-2" onClick={() => handleJobDescription()}>
                   开始面试
                 </Button>
               </div>
